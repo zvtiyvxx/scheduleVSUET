@@ -5,7 +5,6 @@ from config import db_tg, db_users
 async def add_user_info(user_id: int, groups: str, subgroup: int, table_name: str, state):
     async with aiosqlite.connect(db_users) as db:
 
-        # Создаем таблицу, если она не существует
         await db.execute("""
             CREATE TABLE IF NOT EXISTS users(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -24,7 +23,6 @@ async def add_user_info(user_id: int, groups: str, subgroup: int, table_name: st
             else:
                 state = 0
 
-        # Обновляем данные пользователя или вставляем нового
         await db.execute("""
             INSERT INTO users (user_id, groups, subgroup, table_name, notification_state)
             VALUES (?, ?, ?, ?, ?)
@@ -35,36 +33,23 @@ async def add_user_info(user_id: int, groups: str, subgroup: int, table_name: st
                 notification_state = excluded.notification_state
         """, (user_id, groups, subgroup, table_name, state))
 
-        # Применяем изменения в базе данных
         await db.commit()
 
 async def check_user_group(group_name: str) -> dict:
-    """
-    Проверяет, существует ли группа, есть ли у нее подгруппа и возвращает таблицу, где она найдена.
 
-    :param group_name: Название группы (например, "У-242").
-    :return: Словарь с результатами:
-             - "group_exists" (bool): True, если группа найдена.
-             - "has_subgroup" (bool): True, если у группы есть вторая подгруппа.
-             - "table_name" (str): Название таблицы, в которой найдена группа.
-    """
     async with aiosqlite.connect(db_tg) as db:
-        # Получаем список всех таблиц в базе данных
         query_tables = "SELECT name FROM sqlite_master WHERE type='table';"
         cursor = await db.execute(query_tables)
         tables = [row[0] for row in await cursor.fetchall()]
         await cursor.close()
 
-        # Проверяем каждую таблицу
         for table in tables:
-            # Проверяем, существует ли группа в текущей таблице
             query_group = f"SELECT EXISTS(SELECT 1 FROM {table} WHERE groups = ?) AS group_exists;"
             cursor = await db.execute(query_group, (group_name,))
             group_exists = (await cursor.fetchone())[0] == 1
             await cursor.close()
 
             if group_exists:
-                # Проверяем, есть ли в группе вторая подгруппа (subgroup = 2)
                 query_subgroup = f"""
                     SELECT EXISTS(
                         SELECT 1 FROM {table} 
@@ -81,7 +66,6 @@ async def check_user_group(group_name: str) -> dict:
                     "table_name": table,
                 }
 
-        # Если группа не найдена ни в одной таблице
         return {
             "group_exists": False,
             "has_subgroup": False,
@@ -89,14 +73,7 @@ async def check_user_group(group_name: str) -> dict:
         }
 
 async def save_notification_state(user_id, state):
-    """
-    Сохраняет состояние уведомлений для пользователя.
-
-    :param user_id: ID пользователя.
-    :param state: Состояние уведомлений ("1" для включено, "0" для выключено).
-    """
     async with aiosqlite.connect(db_users) as db:
-        # Убедимся, что таблица существует
         await db.execute("""
             CREATE TABLE IF NOT EXISTS users(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -108,14 +85,12 @@ async def save_notification_state(user_id, state):
             )
         """)
 
-        # Обновляем состояние уведомлений для указанного пользователя
         await db.execute("""
             UPDATE users
             SET notification_state = ?
             WHERE user_id = ?
         """, (state, user_id))
 
-        # Сохраняем изменения
         await db.commit()
 
 async def get_all_user_ids():
