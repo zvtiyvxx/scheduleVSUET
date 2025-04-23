@@ -12,16 +12,13 @@ async def parsing_from_bd(bot, chat_id):
         with sq.connect(db_tg, timeout=10) as db:
             cur = db.cursor()
 
-            # Получаем список файлов в папке
             files = os.listdir(folder)
             total_files = len(files)
 
-            # Проход по всем файлам в папке
             for file_index, file in enumerate(files, start=1):
                 wb = load_workbook(os.path.join(folder, file), data_only=True)
                 table_name = os.path.splitext(file)[0]
 
-                # Создание таблицы с новой структурой
                 cur.execute(f"""
                     CREATE TABLE IF NOT EXISTS {table_name}(
                         groups TEXT, 
@@ -32,23 +29,18 @@ async def parsing_from_bd(bot, chat_id):
                         para TEXT
                     )""")
 
-                # Проход по всем листам в файле
                 for sheetname in wb.sheetnames:
                     sheet = wb[sheetname]
-                    # Начальная строка - 7, Начальная колонка - 2
                     row_number = 7
                     columns_number = 3
 
-                    # Получаем строку 7, начиная со 2-й колонки
-                    row = sheet[row_number]  # Получаем 7-ю строку
+                    row = sheet[row_number]
 
-                    # Проход по ячейкам в 7-й строке, начиная со второй колонки
-                    for idx, cell in enumerate(row[columns_number - 1:]):  # Индексация с 0, поэтому -1
+                    for idx, cell in enumerate(row[columns_number - 1:]):
                         group_name = cell.value
                         if cell.value is not None:
                             print(f'Найдено в листе {sheet.title}, в ячейке {cell.coordinate}')
 
-                            # Обработка групп с подгруппами
                             if idx + 1 < len(row[columns_number - 1:]):
                                 next_cell = row[columns_number + idx]
                                 if next_cell.value is None:
@@ -59,7 +51,6 @@ async def parsing_from_bd(bot, chat_id):
                                     print(f"В {group_name} Подгрупп не обнаружено")
                                     await parsing_table(sheet, cell, table_name, group_name, 1, cur)
 
-                # Обновление прогресса выполнения
                 progress = int((file_index / total_files) * 100)
                 await bot.edit_message_text(
                     chat_id=chat_id1,
@@ -72,7 +63,6 @@ async def parsing_from_bd(bot, chat_id):
                     text=f"⏳ Ручной парсинг данных запущен: {progress}% завершено"
                 )
 
-        # Завершающее сообщение
         await bot.edit_message_text(chat_id=chat_id1, message_id=message1.message_id, text="✅ Обработка всех файлов завершена! (ручной парсинг)")
         await bot.edit_message_text(chat_id=chat_id2, message_id=message2.message_id,
                                     text="✅ Обработка всех файлов завершена! (ручной парсинг)")
