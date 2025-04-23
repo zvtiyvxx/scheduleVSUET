@@ -3,11 +3,9 @@ from config import db_tg, db_schedules, db_users
 
 async def save_users_schedule(user_id, group, subgroup, table_name):
     try:
-        # Подключение к базе данных с расписаниями групп
         async with aiosqlite.connect(db_tg) as schedule_conn:
             schedule_cursor = await schedule_conn.cursor()
 
-            # Извлечение расписания из указанной таблицы расписаний
             await schedule_cursor.execute(f"""
                 SELECT day, time, ChZn, para,
                        CASE 
@@ -31,9 +29,7 @@ async def save_users_schedule(user_id, group, subgroup, table_name):
             print(f"No schedule found for group {group}, subgroup {subgroup} in table {table_name}.")
             return
 
-        # Подключение к базе данных расписаний пользователей
         async with aiosqlite.connect(db_schedules) as user_conn:
-            # Создание таблицы, если ее нет
             await user_conn.execute("""
                 CREATE TABLE IF NOT EXISTS user_schedules (
                     user_id INTEGER NOT NULL,
@@ -45,10 +41,8 @@ async def save_users_schedule(user_id, group, subgroup, table_name):
             """)
             await user_conn.commit()
 
-            # Удаление старых записей для пользователя
             await user_conn.execute("DELETE FROM user_schedules WHERE user_id = ?", (user_id,))
 
-            # Сохранение нового расписания
             await user_conn.executemany(
                 """
                 INSERT INTO user_schedules (user_id, day, time, chzn, para)
@@ -63,11 +57,9 @@ async def save_users_schedule(user_id, group, subgroup, table_name):
 
 async def send_for_week(bot, user_id, ChZn):
     try:
-        # Подключение к базе данных с расписанием пользователей
         async with aiosqlite.connect(db_schedules) as conn:
             cursor = await conn.cursor()
 
-            # Извлечение расписания для указанного пользователя с учетом `Числ/Знамен`
             await cursor.execute(
                 """
                 SELECT day, time, para
@@ -90,19 +82,16 @@ async def send_for_week(bot, user_id, ChZn):
 
             schedule = await cursor.fetchall()
 
-        # Проверка, есть ли расписание
         if not schedule:
             await bot.send_message(user_id, f"Расписание для '{ChZn}' недели не найдено.")
             return
 
-        # Формирование текста расписания
         weekly_schedule = {}
         for day, time, para in schedule:
             if day not in weekly_schedule:
                 weekly_schedule[day] = []
             weekly_schedule[day].append((time, para))
 
-        # Отправка расписания пользователю
         response = f"🗓 <b>Расписание на неделю ({ChZn}):</b>\n"
         for day, lessons in weekly_schedule.items():
             response += f"\n<b>{day.upper()}</b>\n"
@@ -117,11 +106,9 @@ async def send_for_week(bot, user_id, ChZn):
 
 async def update_unique_schedules():
     try:
-        # Подключение к базе данных пользователей
         async with aiosqlite.connect(db_users) as user_conn:
             cursor = await user_conn.cursor()
 
-            # Извлечение всех пользователей с их группами и подгруппами
             await cursor.execute("SELECT user_id, groups, subgroup, table_name FROM users")
             users_data = await cursor.fetchall()
 
@@ -129,9 +116,8 @@ async def update_unique_schedules():
             print("No users found in the database.")
             return
 
-        # Подключение к базе данных с расписаниями групп
         async with aiosqlite.connect(db_tg) as schedule_conn:
-            # Для каждого пользователя обновляем расписание
+
             for user_id, group, subgroup, table_name in users_data:
                 await save_users_schedule(user_id, group, subgroup, table_name)
 
