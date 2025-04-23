@@ -22,14 +22,11 @@ async def download_tables(bot):
             os.makedirs(os.path.dirname(path), exist_ok=True)
 
             try:
-                # Проверка типа контента
                 async with session.head(url) as resp:
                     content_type = resp.headers.get("Content-Type", "")
                     if "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" not in content_type:
-                        # Если это не .xlsx, добавляем "ocz/" в ссылку
                         url = base_url + "ocz/" + table_name
 
-                # Скачиваем файл
                 async with session.get(url) as resp:
                     resp.raise_for_status()
                     async with aiofiles.open(path, 'wb') as f:
@@ -76,21 +73,17 @@ async def compare_hashes(bot, id1):
 async def parsing_from_bd(bot, update_files):
     chat_id1, chat_id2 = ADMIN_ID
     try:
-        # Сообщение о начале парсинга
         await bot.send_message(chat_id1, f"📅 Обнаружены измененные таблицы {update_files}, процесс парсинга запущен...")
         await bot.send_message(chat_id2, f"📅 Обнаружены измененные таблицы {update_files}, процесс парсинга запущен...")
 
         with sq.connect(db_tg, timeout=10) as db:
             cur = db.cursor()
 
-            # Получаем список файлов в папке
             files = os.listdir(foldercheck)
 
-            # Функция для удаления старой таблицы для группы
             def delete_old_schedule(tabl_name):
                 cur.execute(f"DROP TABLE IF EXISTS {tabl_name}")
 
-            # Проход по всем файлам в папке
             for file_index, file in enumerate(files, start=1):
                 if file in update_files:
 
@@ -100,7 +93,6 @@ async def parsing_from_bd(bot, update_files):
 
                     delete_old_schedule(table_name)
 
-                    # Создание таблицы с новой структурой
                     cur.execute(f"""
                         CREATE TABLE IF NOT EXISTS {table_name}(
                             groups TEXT, 
@@ -111,38 +103,30 @@ async def parsing_from_bd(bot, update_files):
                             para TEXT
                         )""")
 
-                    # Проход по всем листам в файле
                     for sheetname in wb.sheetnames:
                         sheet = wb[sheetname]
-                        # Начальная строка - 7, Начальная колонка - 2
                         row_number = 7
                         columns_number = 3
 
-                        # Получаем строку 7, начиная со 2-й колонки
-                        row = sheet[row_number]  # Получаем 7-ю строку
+                        row = sheet[row_number] 
 
-                        # Проход по ячейкам в 7-й строке, начиная со второй колонки
-                        for idx, cell in enumerate(row[columns_number - 1:]):  # Индексация с 0, поэтому -1
+                        for idx, cell in enumerate(row[columns_number - 1:]):
                             group_name = cell.value
                             if group_name is not None:
                                 print(f'Найдено в листе {sheet.title}, в ячейке {cell.coordinate}')
 
-                                # Обработка групп с подгруппами
                                 if idx + 1 < len(row[columns_number - 1:]):
                                     next_cell = row[columns_number + idx]
-                                    if next_cell.value is None:  # Подгруппы 1 и 2
+                                    if next_cell.value is None:
                                         print(f"В {group_name} есть 2 подгруппа")
-                                        # Парсим для подгруппы 1 и 2
                                         await parsing_table(sheet, cell, table_name, group_name, 1, cur)
                                         await parsing_table(sheet, next_cell, table_name, group_name, 2, cur)
                                     else:
                                         print(f"В {group_name} подгрупп не обнаружено")
-                                        # Парсим только для первой подгруппы
                                         await parsing_table(sheet, cell, table_name, group_name, 1, cur)
 
         end_check_schedule(update_files)
         await update_unique_schedules()
-        # Завершающее сообщение
         await bot.send_message(chat_id=chat_id1,
                                     text="📅 Парсинг завершен, расписание пользователей успешно обновлено!")
         await bot.send_message(chat_id=chat_id2,
@@ -248,9 +232,7 @@ async def parsing_table(sheet, cell, table_name, group_name, subgroup, cur):
 
 def end_check_schedule(update_files):
     try:
-        #Перемещаем файлы из временной папки в основную
         for file in update_files:
-            #Проверяем, существует ли файл в временной папке
             if os.path.exists(os.path.join(foldercheck, file)):
                 shutil.move(os.path.join(foldercheck, file), os.path.join(folder, file))
                 print(f"Файл {file} перемещен в основную папку")
